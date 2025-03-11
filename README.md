@@ -68,6 +68,12 @@ Example:
 
 ## Frequently Asked Questions
 
+## What is the login URL redirect this plugin generates?
+
+The login URL uses a auth0_login=1 parameter that will need to be configured in Auth0's allowed callback URLs. The redirect_to parameter is the original page the user was trying to access.
+
+https://your-site.com/?auth0_login=1&redirect_to=https%3A%2F%2Fyour-site.com%2Foriginal-page%2F
+
 ### Does this create WordPress users?
 
 No. This plugin uses PHP sessions to track authenticated users without creating WordPress user accounts.
