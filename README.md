@@ -1,12 +1,14 @@
 # Auth0 for All
 
-A lightweight WordPress plugin that enables front-end authentication with Auth0 without creating WordPress user accounts.
+A lightweight WordPress plugin that enables front-end authentication with Auth0 without creating WordPress user accounts. 
 
 ## Description
 
 Auth0 for All provides a seamless way to protect your WordPress front-end content using Auth0 authentication while keeping your WordPress admin separate. The official Auth0 plugin requires WordPress accounts and is designed for the admin panel. This integration stores user sessions separately from WordPress user accounts, making it ideal for membership sites, intranets, and client portals. This plugin is dependent on the Auth0 Login for WordPress plugin.
 
-![Plugin Settings](https://imgur.com/n44TmTe)
+[Blog post announcing the plugin](https://blog.greggant.com/posts/2025/03/10/wordpress-auth0-for-all-users-without-wp-accounts.html)
+
+![Plugin Settings](https://blog.greggant.com/images/posts/2025-03-11-auth0-for-all.png)
 
 ### Key Features
 
