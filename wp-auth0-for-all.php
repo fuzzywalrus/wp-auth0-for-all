@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Auth0 for All
- * Description: Custom Auth0 integration that works alongside Login by Auth0 plugin, forcing login for front-end pages without creating WordPress users. Uses client ID and domain declared in the plugin.
- * Version: 1.0
+ * Description: Custom Auth0 integration that works alongside Login by Auth0 plugin, forcing login for front-end pages without creating WordPress users. Uses client ID and domain declared in the plugin. <a href="options-general.php?page=simple-auth0-settings">Plugin settings</a>
+ * Version: 1.1
  * Author: Greg Gant
  * Author URI: https://www.greggant.com
  * Plugin URI: https://github.com/fuzzywalrus/wp-auth0-for-all
@@ -14,7 +14,7 @@ if (!defined('WPINC')) {
     die;
 }
 
-class Simple_Auth0_Integration {
+class Auth0_For_All {
     /**
      * The single instance of this class
      */
@@ -41,11 +41,11 @@ class Simple_Auth0_Integration {
     private function __construct() {
         // Load settings
         $this->settings = get_option('simple_auth0_settings', [
-            'use_auth0_settings' => 'yes',
-            'client_id' => '',
-            'domain' => '',
+            'use_custom_domain' => 'no',
             'bypass_for_logged_in' => 'yes',
-            'excluded_paths' => []
+            'excluded_paths' => [],
+            'custom_login_html' => '',
+            'auto_redirect' => 'no'
         ]);
 
         // Initialize the plugin
@@ -184,7 +184,32 @@ class Simple_Auth0_Integration {
         $current_url = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
         $encoded_url = urlencode($current_url);
         
-        // Redirect to our login handler
+        // Check if we should auto-redirect to Auth0
+        if (isset($this->settings['auto_redirect']) && $this->settings['auto_redirect'] === 'yes') {
+            // Get Auth0 settings
+            $client_id = $this->get_auth0_client_id();
+            $domain = $this->get_auth0_domain();
+            
+            if (!empty($client_id) && !empty($domain)) {
+                // Make sure we have a properly structured callback URL
+                $callback_url = add_query_arg(['callback' => '1'], home_url('/'));
+                
+                // Construct the Auth0 login URL
+                $auth0_login_url = "https://{$domain}/authorize?" . http_build_query([
+                    'client_id' => $client_id,
+                    'redirect_uri' => $callback_url,
+                    'response_type' => 'code',
+                    'scope' => 'openid profile email',
+                    'state' => $current_url
+                ]);
+                
+                // Redirect directly to Auth0
+                wp_redirect($auth0_login_url);
+                exit;
+            }
+        }
+        
+        // If not auto-redirecting, go to our login handler
         wp_redirect(home_url('/?auth0_login=1&redirect_to=' . $encoded_url));
         exit;
     }
@@ -234,7 +259,7 @@ class Simple_Auth0_Integration {
             $domain = $this->get_auth0_domain();
             
             if (empty($client_id) || empty($domain)) {
-                wp_die(__('Auth0 is not properly configured. Please check the plugin settings.', 'simple-auth0'));
+                wp_die(__('Auth0 is not properly configured. Please check the plugin settings.', 'auth0-for-all'));
             }
             
             // Make sure we have a properly structured callback URL
@@ -249,11 +274,18 @@ class Simple_Auth0_Integration {
                 'state' => $redirect_to
             ]);
             
-            echo '<div style="text-align:center; padding:50px;">';
-            echo '<h2>' . __('Login Required', 'simple-auth0') . '</h2>';
-            echo '<p>' . __('Please login to access this content.', 'simple-auth0') . '</p>';
-            echo '<a href="' . esc_url($auth0_login_url) . '" style="display:inline-block; background:rgb(92, 45, 131); color:white; padding:10px 20px; text-decoration:none; border-radius:4px;">' . __('Login', 'simple-auth0') . '</a>';
-            echo '</div>';
+            // Check if custom login HTML is provided
+            if (!empty($this->settings['custom_login_html'])) {
+                // Output the custom login HTML with the login URL replaced
+                echo str_replace('{{login_url}}', esc_url($auth0_login_url), $this->settings['custom_login_html']);
+            } else {
+                // Output the default login HTML
+                echo '<div style="text-align:center; padding:50px;">';
+                echo '<h2>' . __('Login Required', 'auth0-for-all') . '</h2>';
+                echo '<p>' . __('Please login to access this content.', 'auth0-for-all') . '</p>';
+                echo '<a href="' . esc_url($auth0_login_url) . '" style="display:inline-block; background:rgb(92, 45, 131); color:white; padding:10px 20px; text-decoration:none; border-radius:4px;">' . __('Login', 'auth0-for-all') . '</a>';
+                echo '</div>';
+            }
             exit;
         }
     }
@@ -299,41 +331,45 @@ class Simple_Auth0_Integration {
      */
     public function add_auth0_logout_link($items, $args) {
         if (isset($_SESSION['auth0_user']) && isset($args->theme_location) && $args->theme_location == 'primary') {
-            $items .= '<li><a href="' . home_url('/?auth0_logout=1') . '">' . __('Logout', 'simple-auth0') . '</a></li>';
+            $items .= '<li><a href="' . home_url('/?auth0_logout=1') . '">' . __('Logout', 'auth0-for-all') . '</a></li>';
         }
         return $items;
     }
 
     /**
-     * Get Auth0 client ID from Login by Auth0 plugin or our settings
+     * Get Auth0 client ID from Login by Auth0 plugin
      */
     private function get_auth0_client_id() {
-        if (isset($this->settings['use_auth0_settings']) && $this->settings['use_auth0_settings'] === 'yes') {
-            // Try to get from Login by Auth0 plugin
-            $auth0_options = get_option('wp_auth0_settings');
-            if (!empty($auth0_options) && !empty($auth0_options['client_id'])) {
-                return $auth0_options['client_id'];
-            }
+        // Get from Login by Auth0 plugin
+        $auth0_options = get_option('wp_auth0_settings');
+        if (!empty($auth0_options) && !empty($auth0_options['client_id'])) {
+            return $auth0_options['client_id'];
         }
         
-        // Fall back to our own settings
-        return !empty($this->settings['client_id']) ? $this->settings['client_id'] : '';
+        // Nothing found
+        return '';
     }
 
     /**
-     * Get Auth0 domain from Login by Auth0 plugin or our settings
+     * Get Auth0 domain from Login by Auth0 plugin
      */
     private function get_auth0_domain() {
-        if (isset($this->settings['use_auth0_settings']) && $this->settings['use_auth0_settings'] === 'yes') {
-            // Try to get from Login by Auth0 plugin
-            $auth0_options = get_option('wp_auth0_settings');
-            if (!empty($auth0_options) && !empty($auth0_options['domain'])) {
-                return $auth0_options['domain'];
+        $auth0_options = get_option('wp_auth0_settings');
+        
+        // Check if we should use custom domain
+        if (isset($this->settings['use_custom_domain']) && $this->settings['use_custom_domain'] === 'yes') {
+            if (!empty($auth0_options) && !empty($auth0_options['custom_domain'])) {
+                return $auth0_options['custom_domain'];
             }
         }
+            
+        // Use regular domain
+        if (!empty($auth0_options) && !empty($auth0_options['domain'])) {
+            return $auth0_options['domain'];
+        }
         
-        // Fall back to our own settings
-        return !empty($this->settings['domain']) ? $this->settings['domain'] : '';
+        // Nothing found
+        return '';
     }
 
     /**
@@ -341,8 +377,8 @@ class Simple_Auth0_Integration {
      */
     public function add_settings_page() {
         add_options_page(
-            __('Simple Auth0 Integration', 'simple-auth0'),
-            __('Simple Auth0 Integration', 'simple-auth0'),
+            __('Auth0 for All', 'auth0-for-all'),
+            __('Auth0 for All', 'auth0-for-all'),
             'manage_options',
             'simple-auth0-settings',
             [$this, 'render_settings_page']
@@ -357,47 +393,62 @@ class Simple_Auth0_Integration {
         
         add_settings_section(
             'simple_auth0_main_section',
-            __('Main Settings', 'simple-auth0'),
+            __('Main Settings', 'auth0-for-all'),
             [$this, 'render_main_section'],
             'simple-auth0-settings'
         );
         
-        add_settings_field(
-            'use_auth0_settings',
-            __('Use Login by Auth0 Settings', 'simple-auth0'),
-            [$this, 'render_use_auth0_settings_field'],
-            'simple-auth0-settings',
-            'simple_auth0_main_section'
+        add_settings_section(
+            'simple_auth0_auth0_section',
+            __('Auth0 Connection', 'auth0-for-all'),
+            [$this, 'render_auth0_section'],
+            'simple-auth0-settings'
         );
         
         add_settings_field(
-            'client_id',
-            __('Auth0 Client ID', 'simple-auth0'),
-            [$this, 'render_client_id_field'],
+            'use_custom_domain',
+            __('Use Custom Domain', 'auth0-for-all'),
+            [$this, 'render_use_custom_domain_field'],
             'simple-auth0-settings',
-            'simple_auth0_main_section'
+            'simple_auth0_auth0_section'
         );
         
         add_settings_field(
-            'domain',
-            __('Auth0 Domain', 'simple-auth0'),
-            [$this, 'render_domain_field'],
+            'auth0_connection_info',
+            __('Auth0 Connection Info', 'auth0-for-all'),
+            [$this, 'render_auth0_connection_info_field'],
             'simple-auth0-settings',
-            'simple_auth0_main_section'
+            'simple_auth0_auth0_section'
         );
         
         add_settings_field(
             'bypass_for_logged_in',
-            __('Bypass for Logged-in Users', 'simple-auth0'),
+            __('Bypass for Logged-in Users', 'auth0-for-all'),
             [$this, 'render_bypass_for_logged_in_field'],
             'simple-auth0-settings',
             'simple_auth0_main_section'
         );
         
         add_settings_field(
+            'auto_redirect',
+            __('Auto-Redirect to Auth0', 'auth0-for-all'),
+            [$this, 'render_auto_redirect_field'],
+            'simple-auth0-settings',
+            'simple_auth0_main_section'
+        );
+        
+        add_settings_field(
             'excluded_paths',
-            __('Excluded Paths', 'simple-auth0'),
+            __('Excluded Paths', 'auth0-for-all'),
             [$this, 'render_excluded_paths_field'],
+            'simple-auth0-settings',
+            'simple_auth0_main_section'
+        );
+        
+        add_settings_field(
+            'custom_login_html',
+            __('Custom Login Page HTML', 'auth0-for-all'),
+            [$this, 'render_custom_login_html_field'],
             'simple-auth0-settings',
             'simple_auth0_main_section'
         );
@@ -409,11 +460,65 @@ class Simple_Auth0_Integration {
     public function sanitize_settings($input) {
         $sanitized = [];
         
-        $sanitized['use_auth0_settings'] = isset($input['use_auth0_settings']) ? 'yes' : 'no';
-        $sanitized['client_id'] = sanitize_text_field($input['client_id']);
-        $sanitized['domain'] = sanitize_text_field($input['domain']);
+        $sanitized['use_custom_domain'] = isset($input['use_custom_domain']) ? 'yes' : 'no';
         $sanitized['bypass_for_logged_in'] = isset($input['bypass_for_logged_in']) ? 'yes' : 'no';
+        $sanitized['auto_redirect'] = isset($input['auto_redirect']) ? 'yes' : 'no';
         $sanitized['excluded_paths'] = sanitize_textarea_field($input['excluded_paths']);
+        
+        // Allow some HTML tags in the custom login HTML
+        $allowed_html = [
+            'div' => [
+                'class' => [],
+                'id' => [],
+                'style' => [],
+            ],
+            'h1' => [
+                'class' => [],
+                'id' => [],
+                'style' => [],
+            ],
+            'h2' => [
+                'class' => [],
+                'id' => [],
+                'style' => [],
+            ],
+            'h3' => [
+                'class' => [],
+                'id' => [],
+                'style' => [],
+            ],
+            'p' => [
+                'class' => [],
+                'id' => [],
+                'style' => [],
+            ],
+            'a' => [
+                'href' => [],
+                'class' => [],
+                'id' => [],
+                'style' => [],
+                'target' => [],
+            ],
+            'img' => [
+                'src' => [],
+                'alt' => [],
+                'class' => [],
+                'id' => [],
+                'style' => [],
+                'width' => [],
+                'height' => [],
+            ],
+            'span' => [
+                'class' => [],
+                'id' => [],
+                'style' => [],
+            ],
+            'br' => [],
+            'strong' => [],
+            'em' => [],
+        ];
+        
+        $sanitized['custom_login_html'] = wp_kses($input['custom_login_html'], $allowed_html);
         
         return $sanitized;
     }
@@ -443,67 +548,109 @@ class Simple_Auth0_Integration {
      * Render main section description
      */
     public function render_main_section() {
-        echo '<p>' . __('Configure your Auth0 integration settings here.', 'simple-auth0') . '</p>';
+        echo '<p>' . __('Configure your Auth0 integration behavior.', 'auth0-for-all') . '</p>';
     }
 
     /**
-     * Render use Auth0 settings field
+     * Render Auth0 section description
      */
-    public function render_use_auth0_settings_field() {
-        $use_auth0_settings = isset($this->settings['use_auth0_settings']) ? $this->settings['use_auth0_settings'] : 'yes';
+    public function render_auth0_section() {
+        echo '<p>' . __('Configure how this plugin connects with Auth0. This plugin uses the credentials from the official Auth0 plugin.', 'auth0-for-all') . '</p>';
+    }
+
+    /**
+     * Render use custom domain field
+     */
+    public function render_use_custom_domain_field() {
+        $use_custom_domain = isset($this->settings['use_custom_domain']) ? $this->settings['use_custom_domain'] : 'no';
+        $auth0_custom_domain = '';
+        
+        // Check if we can get this from the Auth0 plugin
+        $auth0_options = get_option('wp_auth0_settings');
+        if (!empty($auth0_options) && !empty($auth0_options['custom_domain'])) {
+            $auth0_custom_domain = $auth0_options['custom_domain'];
+        }
+        
         ?>
         <label>
-            <input type="checkbox" name="simple_auth0_settings[use_auth0_settings]" value="yes" <?php checked($use_auth0_settings, 'yes'); ?>>
-            <?php _e('Use settings from the Login by Auth0 plugin if available', 'simple-auth0'); ?>
+            <input type="checkbox" name="simple_auth0_settings[use_custom_domain]" value="yes" <?php checked($use_custom_domain, 'yes'); ?>>
+            <?php _e('Use custom domain from Auth0 plugin instead of regular domain', 'auth0-for-all'); ?>
         </label>
-        <?php
-    }
-
-    /**
-     * Render client ID field
-     */
-    public function render_client_id_field() {
-        $client_id = isset($this->settings['client_id']) ? $this->settings['client_id'] : '';
-        $use_auth0_settings = isset($this->settings['use_auth0_settings']) ? $this->settings['use_auth0_settings'] : 'yes';
-        $auth0_client_id = '';
-        
-        // Check if we can get this from the Auth0 plugin
-        $auth0_options = get_option('wp_auth0_settings');
-        if (!empty($auth0_options) && !empty($auth0_options['client_id'])) {
-            $auth0_client_id = $auth0_options['client_id'];
-        }
-        
-        ?>
-        <input type="text" name="simple_auth0_settings[client_id]" value="<?php echo esc_attr($client_id); ?>" class="regular-text">
-        <?php if ($use_auth0_settings === 'yes' && !empty($auth0_client_id)): ?>
+        <?php if (!empty($auth0_custom_domain)): ?>
             <p class="description">
-                <?php printf(__('Currently using "%s" from Login by Auth0 plugin', 'simple-auth0'), esc_html($auth0_client_id)); ?>
+                <?php printf(__('Custom domain from Auth0 plugin: "%s"', 'auth0-for-all'), esc_html($auth0_custom_domain)); ?>
+            </p>
+        <?php else: ?>
+            <p class="description">
+                <?php _e('No custom domain configured in Auth0 plugin', 'auth0-for-all'); ?>
             </p>
         <?php endif; ?>
         <?php
     }
 
     /**
-     * Render domain field
+     * Render Auth0 connection info field
      */
-    public function render_domain_field() {
-        $domain = isset($this->settings['domain']) ? $this->settings['domain'] : '';
-        $use_auth0_settings = isset($this->settings['use_auth0_settings']) ? $this->settings['use_auth0_settings'] : 'yes';
-        $auth0_domain = '';
-        
-        // Check if we can get this from the Auth0 plugin
+    public function render_auth0_connection_info_field() {
         $auth0_options = get_option('wp_auth0_settings');
-        if (!empty($auth0_options) && !empty($auth0_options['domain'])) {
-            $auth0_domain = $auth0_options['domain'];
+        $auth0_client_id = !empty($auth0_options['client_id']) ? $auth0_options['client_id'] : '';
+        $auth0_domain = !empty($auth0_options['domain']) ? $auth0_options['domain'] : '';
+        $auth0_custom_domain = !empty($auth0_options['custom_domain']) ? $auth0_options['custom_domain'] : '';
+        
+        // Get the current domain being used
+        $use_custom_domain = isset($this->settings['use_custom_domain']) ? $this->settings['use_custom_domain'] : 'no';
+        $active_domain = '';
+        
+        if ($use_custom_domain === 'yes' && !empty($auth0_custom_domain)) {
+            $active_domain = $auth0_custom_domain;
+        } elseif (!empty($auth0_domain)) {
+            $active_domain = $auth0_domain;
         }
         
         ?>
-        <input type="text" name="simple_auth0_settings[domain]" value="<?php echo esc_attr($domain); ?>" class="regular-text">
-        <?php if ($use_auth0_settings === 'yes' && !empty($auth0_domain)): ?>
-            <p class="description">
-                <?php printf(__('Currently using "%s" from Login by Auth0 plugin', 'simple-auth0'), esc_html($auth0_domain)); ?>
-            </p>
-        <?php endif; ?>
+        <table class="form-table" role="presentation">
+            <tr>
+                <th scope="row"><?php _e('Client ID', 'auth0-for-all'); ?></th>
+                <td>
+                    <code><?php echo esc_html($auth0_client_id); ?></code>
+                    <?php if (empty($auth0_client_id)): ?>
+                        <p class="description" style="color: red;">
+                            <?php _e('No Client ID found in Auth0 plugin settings. Please configure the Auth0 plugin first.', 'auth0-for-all'); ?>
+                        </p>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><?php _e('Domain', 'auth0-for-all'); ?></th>
+                <td>
+                    <code><?php echo esc_html($auth0_domain); ?></code>
+                    <?php if (empty($auth0_domain)): ?>
+                        <p class="description" style="color: red;">
+                            <?php _e('No Domain found in Auth0 plugin settings. Please configure the Auth0 plugin first.', 'auth0-for-all'); ?>
+                        </p>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <?php if (!empty($auth0_custom_domain)): ?>
+            <tr>
+                <th scope="row"><?php _e('Custom Domain', 'auth0-for-all'); ?></th>
+                <td>
+                    <code><?php echo esc_html($auth0_custom_domain); ?></code>
+                </td>
+            </tr>
+            <?php endif; ?>
+            <tr>
+                <th scope="row"><?php _e('Active Domain', 'auth0-for-all'); ?></th>
+                <td>
+                    <strong><?php echo esc_html($active_domain); ?></strong>
+                    <?php if (empty($active_domain)): ?>
+                        <p class="description" style="color: red;">
+                            <?php _e('No active domain could be determined. Please check your Auth0 plugin configuration.', 'auth0-for-all'); ?>
+                        </p>
+                    <?php endif; ?>
+                </td>
+            </tr>
+        </table>
         <?php
     }
 
@@ -515,7 +662,20 @@ class Simple_Auth0_Integration {
         ?>
         <label>
             <input type="checkbox" name="simple_auth0_settings[bypass_for_logged_in]" value="yes" <?php checked($bypass_for_logged_in, 'yes'); ?>>
-            <?php _e('Skip Auth0 authentication for users already logged into WordPress', 'simple-auth0'); ?>
+            <?php _e('Skip Auth0 authentication for users already logged into WordPress', 'auth0-for-all'); ?>
+        </label>
+        <?php
+    }
+
+    /**
+     * Render auto-redirect field
+     */
+    public function render_auto_redirect_field() {
+        $auto_redirect = isset($this->settings['auto_redirect']) ? $this->settings['auto_redirect'] : 'no';
+        ?>
+        <label>
+            <input type="checkbox" name="simple_auth0_settings[auto_redirect]" value="yes" <?php checked($auto_redirect, 'yes'); ?>>
+            <?php _e('Automatically redirect to Auth0 login page instead of showing the intermediate login page', 'auth0-for-all'); ?>
         </label>
         <?php
     }
@@ -528,23 +688,38 @@ class Simple_Auth0_Integration {
         ?>
         <textarea name="simple_auth0_settings[excluded_paths]" rows="5" cols="50" class="large-text code"><?php echo esc_textarea($excluded_paths); ?></textarea>
         <p class="description">
-            <?php _e('Enter one path per line. These paths will not require Auth0 login. You can use * as a wildcard.', 'simple-auth0'); ?>
+            <?php _e('Enter one path per line. These paths will not require Auth0 login. You can use * as a wildcard.', 'auth0-for-all'); ?>
             <br>
-            <?php _e('Examples: about, blog/*, products/category-*', 'simple-auth0'); ?>
+            <?php _e('Examples: about, blog/*, products/category-*', 'auth0-for-all'); ?>
+        </p>
+        <?php
+    }
+
+    /**
+     * Render custom login HTML field
+     */
+    public function render_custom_login_html_field() {
+        $custom_login_html = isset($this->settings['custom_login_html']) ? $this->settings['custom_login_html'] : '';
+        ?>
+        <textarea name="simple_auth0_settings[custom_login_html]" rows="10" cols="50" class="large-text code"><?php echo esc_textarea($custom_login_html); ?></textarea>
+        <p class="description">
+            <?php _e('Custom HTML for the login page. Use {{login_url}} as a placeholder for the Auth0 login URL.', 'auth0-for-all'); ?>
+            <br>
+            <?php _e('Example: <div class="my-login"><h2>Please Login</h2><a href="{{login_url}}">Click here to login</a></div>', 'auth0-for-all'); ?>
         </p>
         <?php
     }
 }
 
 // Initialize the plugin
-function simple_auth0_integration_init() {
-    Simple_Auth0_Integration::get_instance();
+function auth0_for_all_init() {
+    Auth0_For_All::get_instance();
 }
-simple_auth0_integration_init();
+auth0_for_all_init();
 
 // Add an deactivation hook to clean up settings if needed
-register_deactivation_hook(__FILE__, 'simple_auth0_integration_deactivate');
-function simple_auth0_integration_deactivate() {
+register_deactivation_hook(__FILE__, 'auth0_for_all_deactivate');
+function auth0_for_all_deactivate() {
     // Uncomment to delete settings on plugin deactivation
     // delete_option('simple_auth0_settings');
 }

@@ -1,17 +1,19 @@
-# wp-auth0-for-all
+# Auth0 for All
 
 A lightweight WordPress plugin that enables front-end authentication with Auth0 without creating WordPress user accounts.
 
-
 ## Description
 
-wp-auth0-for-all provides a seamless way to protect your WordPress front-end content using Auth0 authentication while keeping your WordPress admin separate.  The official Auth0 plugin requires Wordpress accounts and is designed for the admin panel. This integration stores user sessions separately from WordPress user accounts, making it ideal for membership sites, intranets, and client portals. This is dependant on the Auth0 Login for Wordpress plugin.
+Auth0 for All provides a seamless way to protect your WordPress front-end content using Auth0 authentication while keeping your WordPress admin separate. The official Auth0 plugin requires WordPress accounts and is designed for the admin panel. This integration stores user sessions separately from WordPress user accounts, making it ideal for membership sites, intranets, and client portals. This plugin is dependent on the Auth0 Login for WordPress plugin.
 
 ### Key Features
 
 - **Front-end only authentication**: Protects public-facing content while leaving WordPress admin untouched
 - **No WordPress user creation**: Stores Auth0 sessions independently from WordPress users
-- **Customizable login experience**: Simple login screen with Auth0 Universal Login integration
+- **Customizable login experience**: Create your own login page HTML with a simple placeholder
+- **Auto-redirect option**: Skip the intermediate login page and go directly to Auth0
+- **Support for Auth0 custom domains**: Choose between standard Auth0 domain or your custom domain
+- **Path exclusion**: Keep specific content public with wildcard support
 
 ### Perfect For
 
@@ -22,32 +24,47 @@ wp-auth0-for-all provides a seamless way to protect your WordPress front-end con
 
 ## Installation
 
-1. Upload the `wp-auth0-for-all` folder to the `/wp-content/plugins/` directory
+1. Upload the `auth0-for-all` folder to the `/wp-content/plugins/` directory
 2. Activate the plugin through the 'Plugins' menu in WordPress
 3. Go to Settings > Auth0 For All to configure
 
 ## Configuration
 
-###  Use with Login by Auth0 Plugin
+### Use with Login by Auth0 Plugin
 
 1. Install and configure the [Login by Auth0](https://wordpress.org/plugins/auth0/) plugin
-2. Activate wp-auth0-for-all
-3. In Settings > Auth0 For All, check "Use settings from the Login by Auth0 plugin"
+2. Activate Auth0 for All
+3. Go to Settings > Auth0 For All to configure the plugin options
 
-### Additional Settings
+### Available Settings
 
+- **Use Custom Domain**: Choose between the standard Auth0 domain or your custom domain
 - **Bypass for Logged-in Users**: Allow WordPress users to bypass Auth0 login
+- **Auto-Redirect to Auth0**: Skip the intermediate login page and go directly to Auth0
 - **Excluded Paths**: Specify paths that should remain public (supports wildcards)
+- **Custom Login Page HTML**: Create your own login page using {{login_url}} as a placeholder
 
 ## Usage
 
 Once configured, the plugin will:
 
-1. Redirect unauthenticated users to a login page
+1. Redirect unauthenticated users to a login page (or directly to Auth0 if auto-redirect is enabled)
 2. After successful Auth0 authentication, redirect users back to their requested page
 3. Add a logout link to your primary menu
 4. Maintain user sessions using PHP $_SESSION
 
+## Customizing the Login Page
+
+You can now customize the login page by providing your own HTML in the plugin settings. Use the `{{login_url}}` placeholder where you want the Auth0 login link to appear.
+
+Example:
+```html
+<div class="my-custom-login">
+  <h2>Welcome to Our Secure Area</h2>
+  <p>Please log in with your credentials to access the content.</p>
+  <a href="{{login_url}}" class="login-button">Sign In</a>
+</div>
+```
 
 ## Frequently Asked Questions
 
@@ -59,24 +76,35 @@ No. This plugin uses PHP sessions to track authenticated users without creating 
 
 The official Login by Auth0 plugin creates WordPress users for each authenticated user and focuses on WordPress admin authentication. This plugin is designed for front-end only authentication without user creation.
 
+### Can I use my Auth0 custom domain?
 
-### How do I customize the login page?
+Yes! You can choose between the standard Auth0 domain or your custom domain in the plugin settings.
 
-Currently, the plugin provides a simple login page. For advanced customization, you can modify the plugin code or use CSS to style the login button. See the `add_auth0_login_button()` function in `wp-auth0-for-all.php` for customization.
+### How do I exclude certain pages from requiring login?
+
+In the plugin settings, add paths to the "Excluded Paths" field - one per line. You can use wildcards (*) to match multiple paths.
 
 ## Changelog
+
+### 1.1
+- Added support for Auth0 custom domains
+- Added customizable login page HTML
+- Added auto-redirect option to skip intermediate login page
+- Improved integration with Auth0 Login plugin
+- Renamed plugin from "Simple Auth0 Integration" to "Auth0 for All"
+- Updated admin UI for better usability
 
 ### 1.0
 - Initial release
 
 ## Credits
 
-- Developed by Greg Gant for Audigy.
+- Developed by Greg Gant for Audigy
 - Built for WordPress
-- Requires Auth0 account & Auth0 Login for Wordpress
+- Requires Auth0 account & Auth0 Login for WordPress
 
-This was originally a functions.php integration that was converted to a plugin for easier deployment and management, Claude.ai was used to convert the functions.php to a plugin.
+This was originally a functions.php integration that was converted to a plugin for easier deployment and management. Claude.ai was used to convert the functions.php to a plugin and add additional features.
 
 ## License
 
-This project is licensed under the GPL v2 or later. 
+This project is licensed under the GPL v2 or later.
