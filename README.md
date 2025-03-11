@@ -1,6 +1,10 @@
-# Auth0 for All
+# Auth0 for All .... and Disable Auth0 for Admin
 
-A lightweight WordPress plugin that enables front-end authentication with Auth0 without creating WordPress user accounts. 
+**Auth0 for All**: A lightweight WordPress plugin that enables front-end authentication with Auth0 without creating WordPress user accounts.  
+
+**Disable Auth0 for Admin**: A lightweight WordPress plugin that disables Auth0 for the WordPress admin panel. See below for installation instructions under the "Disable Auth0 for Admin" heading.
+
+# Auth0 for All
 
 ## Description
 
@@ -94,7 +98,23 @@ Yes! You can choose between the standard Auth0 domain or your custom domain in t
 
 In the plugin settings, add paths to the "Excluded Paths" field - one per line. You can use wildcards (*) to match multiple paths.
 
-## Changelog
+# Disable Auth0 for Admin
+
+This is can be used with or without the Auth0 for All plugin. It disables Auth0 for the WordPress admin panel. IT MUST BE INSTALLED IN THE `/wp-content/mu-plugins/` DIRECTORY. There are no configuration options. This is optional.
+
+## Description
+
+Disable Auth0 for Admin is a lightweight WordPress plugin that disables Auth0 for the WordPress admin panel. This is useful when you want to use Auth0 for front-end authentication but keep the WordPress admin separate.
+
+## Installation
+
+Place in the `/wp-content/mu-plugins/` directory.
+
+## Usage
+
+Once installed, the plugin will stop Auth0 from redirecting the WordPress admin to Auth0 for authentication.
+
+## Changelog for both plugins
 
 ### 1.1
 - Added support for Auth0 custom domains
@@ -103,6 +123,7 @@ In the plugin settings, add paths to the "Excluded Paths" field - one per line. 
 - Improved integration with Auth0 Login plugin
 - Renamed plugin from "Simple Auth0 Integration" to "Auth0 for All"
 - Updated admin UI for better usability
+- Added "Disable Auth0 for Admin" plugin
 
 ### 1.0
 - Initial release
