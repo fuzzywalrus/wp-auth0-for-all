@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Direct Admin Access
  * Description: Force direct access to wp-admin by completely bypassing Auth0 redirects
- * Version: 1.2
+ * Version: 1.0
  */
 
 // Execute as early as possible
@@ -28,41 +28,9 @@ function maybe_handle_plain_wp_login() {
 }
 
 /**
- * Check if we're on a password reset related page
- */
-function is_password_reset_page() {
-    // Check URL parameters for password reset indicators
-    if (isset($_GET['action']) && in_array($_GET['action'], array('lostpassword', 'rp', 'resetpass'))) {
-        return true;
-    }
-    
-    // Check POST data for password reset indicators
-    if (isset($_POST['action']) && in_array($_POST['action'], array('lostpassword', 'rp', 'resetpass'))) {
-        return true;
-    }
-    
-    // Check for wp-login.php?checkemail=confirm which is shown after password reset request
-    if (isset($_GET['checkemail']) && $_GET['checkemail'] == 'confirm') {
-        return true;
-    }
-    
-    // Check for the key and login parameters used in reset links
-    if (isset($_GET['key']) && isset($_GET['login'])) {
-        return true;
-    }
-    
-    return false;
-}
-
-/**
  * Force direct admin access by disabling Auth0 on admin pages
  */
 function force_admin_access() {
-    // Skip everything for password reset pages
-    if (is_password_reset_page()) {
-        return;
-    }
-    
     // Define constant to disable Auth0 for login URLs without .php extension
     if (isset($_SERVER['REQUEST_URI']) && (
         $_SERVER['REQUEST_URI'] === '/wp-login' || 
@@ -91,6 +59,10 @@ function force_admin_access() {
         // Block all redirects to Auth0
         add_filter('wp_redirect', 'block_auth0_redirects', 999, 2);
         
+        // Force native WordPress login
+        remove_all_actions('login_init');
+        remove_all_filters('login_redirect');
+        
         // Check if redirect is happening and stop it
         add_action('init', 'prevent_auth0_init_redirect', -99999);
     }
@@ -100,11 +72,6 @@ function force_admin_access() {
  * Check if the current request is for an admin page
  */
 function is_admin_page() {
-    // Skip if we're on a password reset page
-    if (is_password_reset_page()) {
-        return false;
-    }
-    
     // More comprehensive check for admin and login pages
     return is_admin() || 
         strpos($_SERVER['REQUEST_URI'], '/wp-admin') !== false || 
@@ -121,11 +88,6 @@ function is_admin_page() {
  * Filter out Auth0 plugins on admin pages
  */
 function disable_auth0_plugins($plugins) {
-    // Don't disable plugins on password reset pages
-    if (is_password_reset_page()) {
-        return $plugins;
-    }
-    
     return array_filter($plugins, function($plugin) {
         // Skip this check on plugin management pages
         if (isset($_SERVER['PHP_SELF']) && strpos($_SERVER['PHP_SELF'], 'plugins.php') !== false) {
@@ -151,11 +113,6 @@ function disable_auth0_plugins($plugins) {
  * Block any redirects to Auth0
  */
 function block_auth0_redirects($location, $status) {
-    // Don't block redirects on password reset pages
-    if (is_password_reset_page()) {
-        return $location;
-    }
-    
     // Skip this filter when on plugin management pages
     if (isset($_SERVER['PHP_SELF']) && strpos($_SERVER['PHP_SELF'], 'plugins.php') !== false) {
         return $location;
@@ -193,24 +150,20 @@ function block_auth0_redirects($location, $status) {
  * Stop redirects during init
  */
 function prevent_auth0_init_redirect() {
-    // Skip on password reset pages
-    if (is_password_reset_page()) {
-        return;
+    // Check for any Auth0 redirects happening in init
+    if (did_action('init')) {
+        // Remove all remaining redirect_canonical filters
+        remove_all_filters('redirect_canonical');
+        
+        // Disable all additional redirects
+        add_filter('wp_redirect', '__return_false', 999999);
     }
-    
-    // Only remove redirect_canonical, not wp_redirect
-    remove_all_filters('redirect_canonical');
 }
 
 /**
  * Add notification that admin protection is active
  */
 function admin_protection_notice() {
-    // Skip on password reset pages
-    if (is_password_reset_page()) {
-        return;
-    }
-    
     // Don't show on plugin pages
     if (isset($_SERVER['PHP_SELF']) && strpos($_SERVER['PHP_SELF'], 'plugins.php') !== false) {
         return;
