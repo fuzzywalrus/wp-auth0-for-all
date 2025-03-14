@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Direct Admin Access
  * Description: Force direct access to wp-admin by completely bypassing Auth0 redirects
- * Version: 1.0
+ * Version: 1.1
  */
 
 // Execute as early as possible
@@ -42,8 +42,8 @@ function force_admin_access() {
         }
     }
     
-    // Check if we're on an admin page or login page
-    if (is_admin_page()) {
+    // Check if we're on an admin page, login page, or password reset page
+    if (is_admin_page() || is_password_reset_page()) {
         // Define constant to disable Auth0
         if (!defined('DISABLE_AUTH0')) {
             define('DISABLE_AUTH0', true);
@@ -66,6 +66,26 @@ function force_admin_access() {
         // Check if redirect is happening and stop it
         add_action('init', 'prevent_auth0_init_redirect', -99999);
     }
+}
+
+/**
+ * Check if the current request is for a password reset page
+ */
+function is_password_reset_page() {
+    // Check for password reset actions
+    return (
+        // Check for lostpassword action
+        (isset($_GET['action']) && $_GET['action'] === 'lostpassword') ||
+        // Check for resetpass action
+        (isset($_GET['action']) && $_GET['action'] === 'resetpass') ||
+        // Check for rp action (reset password)
+        (isset($_GET['action']) && $_GET['action'] === 'rp') ||
+        // Check for POST requests to wp-login.php
+        (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && 
+         strpos($_SERVER['REQUEST_URI'], 'wp-login.php') !== false) ||
+        // Check for specific password reset keys
+        (isset($_GET['key']) && !empty($_GET['key']) && isset($_GET['login']))
+    );
 }
 
 /**
@@ -127,6 +147,18 @@ function block_auth0_redirects($location, $status) {
         return $location;
     }
     
+    // Allow all WordPress password reset redirects
+    if (is_password_reset_page() || 
+        (strpos($location, 'wp-login.php') !== false && 
+         (strpos($location, 'checkemail=confirm') !== false || 
+          strpos($location, 'action=resetpass') !== false ||
+          strpos($location, 'action=rp') !== false))
+       ) {
+        // Log the allowed password reset redirect
+        error_log('Admin Access: Allowed password reset redirect to ' . $location);
+        return $location;
+    }
+    
     // Block redirects to Auth0 domains or with Auth0 parameters
     if (strpos($location, 'auth0.com') !== false || 
         strpos($location, '.auth0.com') !== false ||
@@ -150,6 +182,11 @@ function block_auth0_redirects($location, $status) {
  * Stop redirects during init
  */
 function prevent_auth0_init_redirect() {
+    // Don't interfere with password reset
+    if (is_password_reset_page()) {
+        return;
+    }
+    
     // Check for any Auth0 redirects happening in init
     if (did_action('init')) {
         // Remove all remaining redirect_canonical filters
@@ -185,3 +222,23 @@ function admin_protection_notice() {
     <?php
 }
 add_action('admin_notices', 'admin_protection_notice');
+
+/**
+ * Debug mode - add this to help diagnose issues
+ * Uncomment the error_log lines to enable logging
+ */
+function debug_wp_login_flow() {
+    $action = isset($_GET['action']) ? $_GET['action'] : 'login';
+    $method = $_SERVER['REQUEST_METHOD'];
+    $uri = $_SERVER['REQUEST_URI'];
+    
+    // Log the login action
+    // error_log("WP Login: Action=$action, Method=$method, URI=$uri");
+    
+    if ($method === 'POST') {
+        // Log POST keys (don't log actual values for security)
+        $post_keys = implode(', ', array_keys($_POST));
+        // error_log("WP Login POST: keys=$post_keys");
+    }
+}
+add_action('login_init', 'debug_wp_login_flow', 1);
