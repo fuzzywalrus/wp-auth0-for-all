@@ -2,17 +2,7 @@
 /**
  * Plugin Name: Direct Admin Access
  * Description: Force direct access to wp-admin by completely bypassing Auth0 redirects
- * Version: 1.0
- * Author: Greg Gant
- * Author URI: https://www.greggant.com
- * Plugin URI: https://github.com/fuzzywalrus/wp-auth0-for-all
- * Text Domain: auth0-for-all
- */
-<?php
-/**
- * Plugin Name: Direct Admin Access
- * Description: Force direct access to wp-admin by completely bypassing Auth0 redirects
- * Version: 1.1
+ * Version: 1.2
  */
 
 // Execute as early as possible
@@ -38,9 +28,41 @@ function maybe_handle_plain_wp_login() {
 }
 
 /**
+ * Check if we're on a password reset related page
+ */
+function is_password_reset_page() {
+    // Check URL parameters for password reset indicators
+    if (isset($_GET['action']) && in_array($_GET['action'], array('lostpassword', 'rp', 'resetpass'))) {
+        return true;
+    }
+    
+    // Check POST data for password reset indicators
+    if (isset($_POST['action']) && in_array($_POST['action'], array('lostpassword', 'rp', 'resetpass'))) {
+        return true;
+    }
+    
+    // Check for wp-login.php?checkemail=confirm which is shown after password reset request
+    if (isset($_GET['checkemail']) && $_GET['checkemail'] == 'confirm') {
+        return true;
+    }
+    
+    // Check for the key and login parameters used in reset links
+    if (isset($_GET['key']) && isset($_GET['login'])) {
+        return true;
+    }
+    
+    return false;
+}
+
+/**
  * Force direct admin access by disabling Auth0 on admin pages
  */
 function force_admin_access() {
+    // Skip everything for password reset pages
+    if (is_password_reset_page()) {
+        return;
+    }
+    
     // Define constant to disable Auth0 for login URLs without .php extension
     if (isset($_SERVER['REQUEST_URI']) && (
         $_SERVER['REQUEST_URI'] === '/wp-login' || 
@@ -69,20 +91,8 @@ function force_admin_access() {
         // Block all redirects to Auth0
         add_filter('wp_redirect', 'block_auth0_redirects', 999, 2);
         
-        // Check if we're on a password reset page - don't interfere with password resets
-        $is_password_reset = (
-            isset($_GET['action']) && ($_GET['action'] === 'lostpassword' || $_GET['action'] === 'rp' || $_GET['action'] === 'resetpass') ||
-            isset($_POST['action']) && ($_POST['action'] === 'lostpassword' || $_POST['action'] === 'rp' || $_POST['action'] === 'resetpass')
-        );
-        
-        // Only remove actions and add init hook if not on password reset
-        if (!$is_password_reset) {
-            // Remove login init but preserve standard login form functionality
-            remove_all_actions('login_init', 10);
-            
-            // Check if redirect is happening and stop it
-            add_action('init', 'prevent_auth0_init_redirect', -99999);
-        }
+        // Check if redirect is happening and stop it
+        add_action('init', 'prevent_auth0_init_redirect', -99999);
     }
 }
 
@@ -90,6 +100,11 @@ function force_admin_access() {
  * Check if the current request is for an admin page
  */
 function is_admin_page() {
+    // Skip if we're on a password reset page
+    if (is_password_reset_page()) {
+        return false;
+    }
+    
     // More comprehensive check for admin and login pages
     return is_admin() || 
         strpos($_SERVER['REQUEST_URI'], '/wp-admin') !== false || 
@@ -106,14 +121,8 @@ function is_admin_page() {
  * Filter out Auth0 plugins on admin pages
  */
 function disable_auth0_plugins($plugins) {
-    // Check for password reset pages
-    $is_password_reset = (
-        isset($_GET['action']) && ($_GET['action'] === 'lostpassword' || $_GET['action'] === 'rp' || $_GET['action'] === 'resetpass') ||
-        isset($_POST['action']) && ($_POST['action'] === 'lostpassword' || $_POST['action'] === 'rp' || $_POST['action'] === 'resetpass')
-    );
-    
-    // Don't disable plugins on password reset
-    if ($is_password_reset) {
+    // Don't disable plugins on password reset pages
+    if (is_password_reset_page()) {
         return $plugins;
     }
     
@@ -142,14 +151,8 @@ function disable_auth0_plugins($plugins) {
  * Block any redirects to Auth0
  */
 function block_auth0_redirects($location, $status) {
-    // Check for password reset pages
-    $is_password_reset = (
-        isset($_GET['action']) && ($_GET['action'] === 'lostpassword' || $_GET['action'] === 'rp' || $_GET['action'] === 'resetpass') ||
-        isset($_POST['action']) && ($_POST['action'] === 'lostpassword' || $_POST['action'] === 'rp' || $_POST['action'] === 'resetpass')
-    );
-    
-    // Don't block redirects on password reset
-    if ($is_password_reset) {
+    // Don't block redirects on password reset pages
+    if (is_password_reset_page()) {
         return $location;
     }
     
@@ -190,28 +193,24 @@ function block_auth0_redirects($location, $status) {
  * Stop redirects during init
  */
 function prevent_auth0_init_redirect() {
-    // Check for password reset
-    $is_password_reset = (
-        isset($_GET['action']) && ($_GET['action'] === 'lostpassword' || $_GET['action'] === 'rp' || $_GET['action'] === 'resetpass') ||
-        isset($_POST['action']) && ($_POST['action'] === 'lostpassword' || $_POST['action'] === 'rp' || $_POST['action'] === 'resetpass')
-    );
-    
-    // Don't interfere with password reset
-    if ($is_password_reset) {
+    // Skip on password reset pages
+    if (is_password_reset_page()) {
         return;
     }
     
-    // Check for any Auth0 redirects happening in init
-    if (did_action('init')) {
-        // Only remove redirect_canonical, not all redirects
-        remove_all_filters('redirect_canonical');
-    }
+    // Only remove redirect_canonical, not wp_redirect
+    remove_all_filters('redirect_canonical');
 }
 
 /**
  * Add notification that admin protection is active
  */
 function admin_protection_notice() {
+    // Skip on password reset pages
+    if (is_password_reset_page()) {
+        return;
+    }
+    
     // Don't show on plugin pages
     if (isset($_SERVER['PHP_SELF']) && strpos($_SERVER['PHP_SELF'], 'plugins.php') !== false) {
         return;
@@ -223,14 +222,6 @@ function admin_protection_notice() {
         strpos($_GET['page'], 'auth0') !== false ||
         strpos($_GET['page'], 'wpa0') !== false
     )) {
-        return;
-    }
-    
-    // Don't show on password reset pages
-    $is_password_reset = (
-        isset($_GET['action']) && ($_GET['action'] === 'lostpassword' || $_GET['action'] === 'rp' || $_GET['action'] === 'resetpass')
-    );
-    if ($is_password_reset) {
         return;
     }
     
