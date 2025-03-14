@@ -2,7 +2,11 @@
 /**
  * Plugin Name: Direct Admin Access
  * Description: Force direct access to wp-admin by completely bypassing Auth0 redirects
- * Version: 1.1
+ * Version: 1.3
+ * Author: Greg Gant
+ * Author URI: https://www.greggant.com
+ * Plugin URI: https://github.com/fuzzywalrus/wp-auth0-for-all
+ * Text Domain: auth0-for-all
  */
 
 // Execute as early as possible
@@ -69,10 +73,11 @@ function force_admin_access() {
 }
 
 /**
- * Check if the current request is for a password reset page
+ * Check if the current request is for a password reset or logout page.
  */
 function is_password_reset_page() {
-    // Check for password reset actions
+    // Check for password reset or logout actions
+    // Hopefully all the cases are covered here
     return (
         // Check for lostpassword action
         (isset($_GET['action']) && $_GET['action'] === 'lostpassword') ||
@@ -80,6 +85,10 @@ function is_password_reset_page() {
         (isset($_GET['action']) && $_GET['action'] === 'resetpass') ||
         // Check for rp action (reset password)
         (isset($_GET['action']) && $_GET['action'] === 'rp') ||
+        // Check for logout action
+        (isset($_GET['action']) && $_GET['action'] === 'logout') ||
+        // Check for loggedout parameter 
+        (isset($_GET['loggedout']) && $_GET['loggedout'] === 'true') ||
         // Check for POST requests to wp-login.php
         (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && 
          strpos($_SERVER['REQUEST_URI'], 'wp-login.php') !== false) ||
@@ -147,15 +156,17 @@ function block_auth0_redirects($location, $status) {
         return $location;
     }
     
-    // Allow all WordPress password reset redirects
+    // Allow all WordPress password reset and logout redirects
     if (is_password_reset_page() || 
         (strpos($location, 'wp-login.php') !== false && 
          (strpos($location, 'checkemail=confirm') !== false || 
           strpos($location, 'action=resetpass') !== false ||
-          strpos($location, 'action=rp') !== false))
+          strpos($location, 'action=rp') !== false ||
+          strpos($location, 'action=logout') !== false ||
+          strpos($location, 'loggedout=true') !== false))
        ) {
-        // Log the allowed password reset redirect
-        error_log('Admin Access: Allowed password reset redirect to ' . $location);
+        // Log the allowed redirect
+        error_log('Admin Access: Allowed WordPress login action redirect to ' . $location);
         return $location;
     }
     
