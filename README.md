@@ -116,6 +116,12 @@ Once installed, the plugin will stop Auth0 from redirecting the WordPress admin 
 
 ## Changelog for both plugins
 
+## 1.3 - Disable Auth0 for Admin
+- `is_password_reset_page()` which despite its name) now handles all WordPress login-related actions. If I missed one, this the place to address it.
+
+## 1.2 - Disable Auth0 for Admin
+- Attempted to create an exception for the password reset page.
+
 ### 1.1
 - Added support for Auth0 custom domains
 - Added customizable login page HTML
