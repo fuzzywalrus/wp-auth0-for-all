@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Direct Admin Access
  * Description: Force direct access to wp-admin by completely bypassing Auth0 redirects
- * Version: 1.3
+ * Version: 1.3.1
  * Author: Greg Gant
  * Author URI: https://www.greggant.com
  * Plugin URI: https://github.com/fuzzywalrus/wp-auth0-for-all
