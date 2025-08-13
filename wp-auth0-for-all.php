@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Auth0 for All
  * Description: Custom Auth0 integration that works alongside Login by Auth0 plugin, forcing login for front-end pages without creating WordPress users. Uses client ID and domain declared in the plugin. <a href="options-general.php?page=simple-auth0-settings">Plugin settings</a>
- * Version: 1.1
+ * Version: 1.3.1
  * Author: Greg Gant
  * Author URI: https://www.greggant.com
  * Plugin URI: https://github.com/fuzzywalrus/wp-auth0-for-all
