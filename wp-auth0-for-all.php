@@ -685,6 +685,9 @@ class Auth0_For_All {
      */
     public function render_excluded_paths_field() {
         $excluded_paths = isset($this->settings['excluded_paths']) ? $this->settings['excluded_paths'] : '';
+        if (is_array($excluded_paths)) {
+            $excluded_paths = implode("\n", $excluded_paths);
+        }
         ?>
         <textarea name="simple_auth0_settings[excluded_paths]" rows="5" cols="50" class="large-text code"><?php echo esc_textarea($excluded_paths); ?></textarea>
         <p class="description">
