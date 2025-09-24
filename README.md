@@ -1,5 +1,9 @@
 # Auth0 for All .... and Disable Auth0 for Admin
 
+[Original blog post](https://blog.greggant.com/posts/2025/03/10/wordpress-auth0-for-all-users-without-wp-accounts.html
+)
+
+
 **Auth0 for All**: A lightweight WordPress plugin that enables front-end authentication with Auth0 without creating WordPress user accounts.  
 
 **Disable Auth0 for Admin**: A lightweight WordPress plugin that disables Auth0 for the WordPress admin panel. See below for installation instructions under the "Disable Auth0 for Admin" heading.
